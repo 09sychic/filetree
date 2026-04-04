@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neural Tree Architect v0.5.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      --bg:           #020617;
+      --bg-surface:   #0f172a;
+      --bg-raised:    #1e293b;
+      --bg-input:     #020617;
+      --border:       #334155;
+      --border-focus: #38bdf8;
+      --glow:         #38bdf8;
+      --glow-soft:    rgba(56, 189, 248, 0.15);
+      --text:         #f8fafc;
+      --text-muted:   #94a3b8;
+      --text-mid:     #cbd5e1;
+      --accent:       #38bdf8;
+      --accent-green: #10b981;
+      --accent-red:   #ef4444;
+      --accent-amber: #f59e0b;
+      --branch-char:  #475569;
+      --node-color:   #7dd3fc;
+      --root-color:   #ffffff;
+      --panel-width:  400px;
+      --header-height: 60px;
+    }
+
+    [data-theme="matrix"] {
+      --bg: #050a05;
+      --bg-surface: #0a120a;
+      --bg-raised: #152215;
+      --border: #1a3a1a;
+      --accent: #22c55e;
+      --glow: #22c55e;
+      --node-color: #4ade80;
+      --border-focus: #22c55e;
+    }
+
+    [data-theme="amber"] {
+      --bg: #0a0702;
+      --bg-surface: #120d08;
+      --bg-raised: #221a0f;
+      --border: #3a2a1a;
+      --accent: #f59e0b;
+      --glow: #f59e0b;
+      --node-color: #fbbf24;
+      --border-focus: #f59e0b;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; height: 100%; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 0.3s ease;
+    }
+
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .crt-overlay {
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0) 0px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0.015) 2px,
+        rgba(0,0,0,0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .ambient {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.3;
+      transition: background 0.5s ease;
+    }
+    .ambient-1 {
+      width: 600px; height: 600px;
+      top: -200px; left: -150px;
+      background: var(--glow);
+    }
+    .ambient-2 {
+      width: 500px; height: 500px;
+      bottom: -150px; right: -100px;
+      background: var(--accent-green);
+    }
+
+    /* ══════════════════════════════════════════════════
+       HEADER
+    ══════════════════════════════════════════════════ */
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(12px);
+      min-height: var(--header-height);
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .logo-icon {
+      width: 24px;
+      height: 24px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--bg);
+      font-weight: 800;
+      font-size: 0.75rem;
+      box-shadow: 0 0 15px var(--glow-soft);
+    }
+
+    .header-info h1 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    /* ══════════════════════════════════════════════════
+       MAIN LAYOUT
+    ══════════════════════════════════════════════════ */
+    main {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: var(--panel-width) 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+      #panel-architect {
+        border-right: none !important;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    /* ── LEFT: ARCHITECT PANEL ── */
+    #panel-architect {
+      border-right: 1px solid var(--border);
+      background: var(--bg-surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .toolbar-top {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .search-input-wrap {
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem 0.5rem 2.25rem;
+      font-size: 0.9rem;
+      color: var(--text);
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--glow-soft);
+    }
+
+    #breadcrumb-nav {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      overflow-x: auto;
+      white-space: nowrap;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    
+    .breadcrumb-item { cursor: pointer; transition: color 0.2s; }
+    .breadcrumb-item:hover { color: var(--accent); }
+    .breadcrumb-sep { opacity: 0.3; }
+
+    .nodes-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem;
+      scroll-behavior: smooth;
+    }
+
+    .node-item { position: relative; margin-bottom: 4px; }
+
+    .node-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.6rem;
+      border-radius: 8px;
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      min-height: 48px;
+    }
+
+    .node-row:hover { background: var(--bg-raised); }
+    .node-row.active {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    .node-expander {
+      width: 24px;
+      height: 24px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .node-expander.expanded { transform: rotate(90deg); }
+
+    .node-label {
+      flex: 1;
+      font-size: 0.95rem;
+      color: var(--text-mid);
+      white-space: normal;
+      word-break: break-word;
+      outline: none;
+      border: 1px solid transparent;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+
+    .node-label:focus {
+      background: var(--bg-input);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    .node-actions { display: flex; gap: 4px; margin-top: 2px; flex-shrink: 0; }
+
+    .action-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 6px; color: var(--text-muted);
+      background: var(--bg-raised); border: 1px solid var(--border);
+      font-size: 0.85rem; transition: all 0.2s;
+    }
+    .action-btn:hover, .action-btn:active {
+      background: var(--bg-input); color: var(--text); border-color: var(--accent);
+    }
+
+    .node-children {
+      margin-left: 1.25rem;
+      border-left: 1px solid var(--border);
+      padding-left: 0.25rem;
+      display: none;
+    }
+    .node-children.visible { display: block; }
+
+    @media (max-width: 600px) {
+      .node-children { margin-left: 0.75rem; }
+      .node-row { padding: 0.5rem; }
+      .action-btn { width: 36px; height: 36px; }
+    }
+
+    /* ── RIGHT: NEURAL PREVIEW ── */
+    #panel-preview {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tree-viewport {
+      flex: 1;
+      overflow: auto;
+      padding: 1.5rem;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    #ascii-render {
+      background: var(--bg-surface);
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      white-space: pre;
+      line-height: 1.5;
+      font-size: 0.8rem;
+      color: var(--node-color);
+      min-width: min-content;
+    }
+
+    #ascii-render .root-node { color: var(--root-color); font-weight: 700; text-shadow: 0 0 10px rgba(255,255,255,0.2); }
+    #ascii-render .branch { color: var(--branch-char); }
+    #ascii-render .node-text { cursor: pointer; transition: background 0.2s; border-radius: 2px; padding: 0 2px; }
+    #ascii-render .node-text:hover { background: var(--bg-raised); color: var(--text); }
+    #ascii-render .highlight { 
+      background: var(--accent); color: var(--bg); 
+      border-radius: 2px; padding: 0 4px;
+      box-shadow: 0 0 10px var(--glow);
+    }
+
+    .btn {
+      padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+      gap: 0.4rem; transition: all 0.2s; border: 1px solid transparent;
+      white-space: nowrap; min-height: 38px;
+    }
+    .btn-primary { background: var(--accent); color: var(--bg); }
+    .btn-outline { border-color: var(--border); background: var(--bg-surface); color: var(--text-mid); }
+
+    .mobile-actions {
+      display: none; position: fixed; bottom: 2rem; left: 50%;
+      transform: translateX(-50%); background: var(--bg-surface);
+      border: 1px solid var(--accent); padding: 0.5rem; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 1000;
+      gap: 0.5rem; backdrop-filter: blur(10px);
+    }
+    @media (max-width: 600px) { .mobile-actions { display: flex; } }
+
+    #toast {
+      position: fixed; bottom: 1rem; right: 1rem; left: 1rem;
+      background: var(--bg-surface); border: 1px solid var(--accent);
+      color: var(--text); padding: 0.75rem 1rem; border-radius: 10px;
+      z-index: 10000; transform: translateY(150px); opacity: 0;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; justify-content: center;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+
+    .theme-dot { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+    .theme-dot.active { border-color: white; transform: scale(1.2); }
+  </style>
+</head>
+<body data-theme="default">
+
+  <div class="crt-overlay"></div>
+  <div class="ambient ambient-1"></div>
+  <div class="ambient ambient-2"></div>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">N</div>
+      <div class="header-info">
+        <h1>Neural Tree</h1>
+        <div class="flex gap-2 mt-0.5">
+          <div class="theme-dot bg-sky-500 active" data-set-theme="default"></div>
+          <div class="theme-dot bg-emerald-500" data-set-theme="matrix"></div>
+          <div class="theme-dot bg-amber-500" data-set-theme="amber"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="header-actions flex items-center gap-2">
+      <div class="flex gap-1 border-r border-slate-800 pr-2 mr-1">
+        <button class="action-btn" id="btn-undo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M20 20v-7a4 4 0 00-4-4H4"/></svg></button>
+        <button class="action-btn" id="btn-redo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M4 20v-7a4 4 0 014-4h12"/></svg></button>
+      </div>
+      <button class="btn btn-outline" id="btn-import">Imp</button>
+      <button class="btn btn-outline" id="btn-export-json">JSON</button>
+      <button class="btn btn-primary" id="btn-copy">Copy</button>
+      <input type="file" id="file-input" hidden accept=".json">
+    </div>
+  </header>
+
+  <main>
+    <aside id="panel-architect">
+      <div class="toolbar-top">
+        <div class="search-input-wrap">
+          <span class="absolute left-2.5 text-slate-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </span>
+          <input type="text" id="node-search" class="search-input" placeholder="Search...">
+        </div>
+        <button class="action-btn" id="btn-expand-all"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+      </div>
+      <div id="breadcrumb-nav"></div>
+      <div class="nodes-container" id="nodes-root-list"></div>
+      <div class="p-4 border-t border-slate-800 bg-slate-900/50">
+        <button class="btn btn-outline w-full justify-center py-3" id="btn-add-root">+ Add New Root Node</button>
+      </div>
+    </aside>
+
+    <section id="panel-preview">
+      <div class="h-10 px-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40 text-[0.7rem]">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-slate-400 uppercase tracking-widest font-bold">Preview</span>
+        </div>
+        <div class="flex gap-4 text-slate-500 mono">
+          <span id="stat-nodes">NODES: 0</span>
+          <span id="stat-depth">DEPTH: 0</span>
+        </div>
+      </div>
+      <div class="tree-viewport">
+        <div id="ascii-render" class="mono"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="mobile-actions">
+    <button class="btn btn-outline" id="m-btn-sibling">Sibling</button>
+    <button class="btn btn-primary" id="m-btn-child">Child</button>
+    <button class="btn btn-outline text-red-500" id="m-btn-delete">Del</button>
+  </div>
+
+  <footer class="h-8 px-6 border-t border-slate-800 flex items-center justify-between text-[0.6rem] text-slate-500 bg-slate-950/80">
+    <div class="flex gap-4"><span>SYSTEM_READY</span><span>AUTO_SAVE: ON</span></div>
+    <div class="mono opacity-50">V0.5.0_CORE</div>
+  </footer>
+
+  <div id="toast"></div>
+
+  <script>
+    (() => {
+      'use strict';
+      let treeData = [{ id: '1', label: 'Neural Core', children: [], expanded: true }];
+      let nodeIdCounter = 2;
+      let activeNodeId = null;
+      let focusNodeId = null;
+
+      const history = {
+        stack: [], index: -1,
+        push(data) {
+          this.stack = this.stack.slice(0, this.index + 1);
+          this.stack.push(JSON.parse(JSON.stringify(data)));
+          if (this.stack.length > 50) this.stack.shift();
+          this.index = this.stack.length - 1;
+        },
+        undo() { return this.index > 0 ? JSON.parse(JSON.stringify(this.stack[--this.index])) : null; },
+        redo() { return this.index < this.stack.length - 1 ? JSON.parse(JSON.stringify(this.stack[++this.index])) : null; }
+      };
+
+      const nodesRootList = document.getElementById('nodes-root-list');
+      const asciiRender = document.getElementById('ascii-render');
+      const nodeSearch = document.getElementById('node-search');
+      const btnAddRoot = document.getElementById('btn-add-root');
+      const btnCopy = document.getElementById('btn-copy');
+      const btnExportJson = document.getElementById('btn-export-json');
+      const btnImport = document.getElementById('btn-import');
+      const fileInput = document.getElementById('file-input');
+      const btnUndo = document.getElementById('btn-undo');
+      const btnRedo = document.getElementById('btn-redo');
+      const btnExpandAll = document.getElementById('btn-expand-all');
+      const statNodes = document.getElementById('stat-nodes');
+      const statDepth = document.getElementById('stat-depth');
+      const toast = document.getElementById('toast');
+      const breadcrumbNav = document.getElementById('breadcrumb-nav');
+      const mBtnSibling = document.getElementById('m-btn-sibling');
+      const mBtnChild = document.getElementById('m-btn-child');
+      const mBtnDelete = document.getElementById('m-btn-delete');
+
+      function init() {
+        const saved = localStorage.getItem('neural_tree_v5');
+        if (saved) { try { const p = JSON.parse(saved); treeData = p.data; nodeIdCounter = p.counter; } catch(e){} }
+        history.push({ data: treeData, counter: nodeIdCounter });
+        render();
+        setupEventListeners();
+        setTheme(localStorage.getItem('neural_theme') || 'default');
+      }
+
+      function setupEventListeners() {
+        btnAddRoot.onclick = () => addNode(null);
+        nodeSearch.oninput = renderNodeList;
+        btnCopy.onclick = copyToClipboard;
+        btnExportJson.onclick = exportJson;
+        btnImport.onclick = () => fileInput.click();
+        fileInput.onchange = importJson;
+        btnUndo.onclick = () => { const s = history.undo(); if (s) applyState(s, "Undo"); };
+        btnRedo.onclick = () => { const s = history.redo(); if (s) applyState(s, "Redo"); };
+        btnExpandAll.onclick = toggleAllExpansion;
+        mBtnSibling.onclick = () => { if (!activeNodeId) return; const p = findParent(treeData, activeNodeId); addNode(p ? p.id : null, activeNodeId); };
+        mBtnChild.onclick = () => { if (activeNodeId) addNode(activeNodeId); };
+        mBtnDelete.onclick = () => { if (activeNodeId) deleteNode(activeNodeId); };
+        document.querySelectorAll('[data-set-theme]').forEach(dot => dot.onclick = () => setTheme(dot.dataset.setTheme));
+
+        // Bi-Directional Preview Click
+        asciiRender.onclick = (e) => {
+          const node = e.target.closest('.node-text');
+          if (node && node.dataset.id) {
+            activeNodeId = node.dataset.id;
+            focusNodeId = node.dataset.id; // Instant Focus Mode
+            render();
+            // Scroll sidebar to element
+            const targetRow = document.querySelector(`.node-row[data-id="${activeNodeId}"]`);
+            if (targetRow) targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        };
+      }
+
+      function setTheme(t) {
+        document.body.dataset.theme = t; localStorage.setItem('neural_theme', t);
+        document.querySelectorAll('.theme-dot').forEach(d => d.classList.toggle('active', d.dataset.setTheme === t));
+      }
+
+      function applyState(s, name) { treeData = s.data; nodeIdCounter = s.counter; render(); saveToLocal(false); showToast(name); }
+      function saveToLocal(record = true) {
+        localStorage.setItem('neural_tree_v5', JSON.stringify({ data: treeData, counter: nodeIdCounter }));
+        if (record) history.push({ data: treeData, counter: nodeIdCounter });
+        updateStats();
+      }
+
+      function findNode(nodes, id) {
+        for (const n of nodes) { if (n.id === id) return n; const f = findNode(n.children, id); if (f) return f; }
+        return null;
+      }
+      function findParent(nodes, childId, parent = null) {
+        for (const n of nodes) { if (n.id === childId) return parent; const f = findParent(n.children, childId, n); if (f) return f; }
+        return null;
+      }
+
+      function addNode(parentId, siblingAfterId = null) {
+        const newNode = { id: String(nodeIdCounter++), label: 'New Node', children: [], expanded: true };
+        if (parentId === null) {
+          if (siblingAfterId) { const idx = treeData.findIndex(n => n.id === siblingAfterId); treeData.splice(idx + 1, 0, newNode); }
+          else treeData.push(newNode);
+        } else {
+          const p = findNode(treeData, parentId);
+          if (p) {
+            if (siblingAfterId) { const idx = p.children.findIndex(n => n.id === siblingAfterId); p.children.splice(idx + 1, 0, newNode); }
+            else p.children.push(newNode);
+            p.expanded = true;
+          }
+        }
+        activeNodeId = newNode.id; render(); saveToLocal();
+        setTimeout(() => focusNode(newNode.id), 50);
+      }
+
+      function deleteNode(id) {
+        const del = (ns) => { const i = ns.findIndex(n => n.id === id); if (i !== -1) { ns.splice(i, 1); return true; } return ns.some(n => del(n.children)); };
+        del(treeData); if (activeNodeId === id) activeNodeId = null; if (focusNodeId === id) focusNodeId = null;
+        render(); saveToLocal();
+      }
+
+      function toggleAllExpansion() {
+        if (!treeData.length) return;
+        const exp = !treeData[0].expanded;
+        const trav = (ns) => ns.forEach(n => { n.expanded = exp; trav(n.children); });
+        trav(treeData); render();
+      }
+
+      function render() { renderNodeList(); renderASCII(); updateStats(); renderBreadcrumbs(); }
+
+      function renderBreadcrumbs() {
+        if (!focusNodeId) { breadcrumbNav.style.display = 'none'; return; }
+        breadcrumbNav.style.display = 'flex'; breadcrumbNav.innerHTML = '';
+        const path = [];
+        const findPath = (nodes, targetId, currentPath) => {
+          for (const node of nodes) {
+            if (node.id === targetId) { path.push(...currentPath, node); return true; }
+            if (findPath(node.children, targetId, [...currentPath, node])) return true;
+          }
+          return false;
+        };
+        findPath(treeData, focusNodeId, []);
+        const rootItem = document.createElement('span'); rootItem.className = 'breadcrumb-item'; rootItem.textContent = 'Root';
+        rootItem.onclick = () => { focusNodeId = null; render(); }; breadcrumbNav.appendChild(rootItem);
+        path.forEach(node => {
+          const sep = document.createElement('span'); sep.className = 'breadcrumb-sep'; sep.textContent = ' / '; breadcrumbNav.appendChild(sep);
+          const item = document.createElement('span'); item.className = 'breadcrumb-item'; item.textContent = node.label;
+          item.onclick = () => { focusNodeId = node.id; render(); }; breadcrumbNav.appendChild(item);
+        });
+      }
+
+      function renderNodeList() {
+        const searchTerm = nodeSearch.value.toLowerCase();
+        nodesRootList.innerHTML = '';
+        let nodesToRender = focusNodeId ? [findNode(treeData, focusNodeId)] : treeData;
+        const buildList = (nodes, container) => {
+          nodes.forEach(node => {
+            if (searchTerm && !node.label.toLowerCase().includes(searchTerm) && !hasMatchingChild(node, searchTerm)) return;
+            const item = document.createElement('div'); item.className = 'node-item';
+            const row = document.createElement('div'); 
+            row.className = `node-row ${activeNodeId === node.id ? 'active' : ''}`;
+            row.dataset.id = node.id; // Added ID for sync lookup
+            row.onclick = (e) => { if (!e.target.classList.contains('node-label')) { activeNodeId = node.id; render(); } };
+            const exp = document.createElement('div'); exp.className = `node-expander ${node.expanded ? 'expanded' : ''}`;
+            exp.innerHTML = node.children.length > 0 ? '▸' : '';
+            exp.onclick = (e) => { e.stopPropagation(); node.expanded = !node.expanded; render(); };
+            const lbl = document.createElement('div'); lbl.className = 'node-label'; lbl.contentEditable = true; lbl.textContent = node.label;
+            lbl.onfocus = () => { activeNodeId = node.id; renderASCII(); };
+            lbl.onblur = (e) => { if (node.label !== e.target.textContent) { node.label = e.target.textContent || '...'; saveToLocal(); renderASCII(); } };
+            const acts = document.createElement('div'); acts.className = 'node-actions';
+            acts.innerHTML = `<button class="action-btn" onclick="window.focusOnNode('${node.id}')">F</button><button class="action-btn" onclick="window.addNode('${node.id}')">+</button>`;
+            row.append(exp, lbl, acts); item.append(row);
+            if (node.children.length > 0) {
+              const childContainer = document.createElement('div'); childContainer.className = `node-children ${node.expanded || searchTerm ? 'visible' : ''}`;
+              if (focusNodeId === node.id) childContainer.style.marginLeft = '0';
+              buildList(node.children, childContainer); item.append(childContainer);
+            }
+            container.append(item);
+          });
+        };
+        buildList(nodesToRender, nodesRootList);
+      }
+
+      function hasMatchingChild(n, t) { return n.children.some(c => c.label.toLowerCase().includes(t) || hasMatchingChild(c, t)); }
+
+      function renderASCII() {
+        if (!treeData.length) { asciiRender.innerHTML = ''; return; }
+        let out = '';
+        const build = (nodes, prefix = '', isLast = true, isRoot = false) => {
+          nodes.forEach((node, i) => {
+            const last = i === nodes.length - 1;
+            const conn = isRoot ? '' : (last ? '└─ ' : '├─ ');
+            const cPre = isRoot ? '' : prefix + (last ? '   ' : '│  ');
+            const highlight = activeNodeId === node.id ? 'highlight' : '';
+            out += `<span class="branch">${prefix}${conn}</span><span class="${isRoot?'root-node':''} ${highlight} node-text" data-id="${node.id}">${escapeHtml(node.label)}</span>\n`;
+            if (node.children.length) build(node.children, cPre, last, false);
+          });
+        };
+        build(treeData, '', true, true); asciiRender.innerHTML = out;
+      }
+
+      function focusNode(id) { const el = Array.from(document.querySelectorAll('.node-label')).find(e => e.textContent === 'New Node'); if (el) el.focus(); }
+      function updateStats() {
+        let c = 0, d = 0; const tr = (ns, cur) => { c += ns.length; if (ns.length) d = Math.max(d, cur); ns.forEach(n => tr(n.children, cur + 1)); };
+        tr(treeData, 1); statNodes.textContent = `NODES: ${c}`; statDepth.textContent = `DEPTH: ${d}`;
+      }
+      function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+      function showToast(m) { toast.textContent = m; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2000); }
+      function copyToClipboard() { navigator.clipboard.writeText(asciiRender.innerText).then(() => showToast("Copied")); }
+      function exportJson() { const b = new Blob([JSON.stringify(treeData, null, 2)], { type: 'application/json' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'tree.json'; a.click(); }
+      function importJson(e) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (re) => { try { treeData = JSON.parse(re.target.result); render(); saveToLocal(); } catch(e){} }; r.readAsText(f); }
+
+      init();
+      window.addNode = addNode; window.deleteNode = deleteNode; window.focusOnNode = (id) => { focusNodeId = id; render(); };
+    })();
+  </script>
+</body>
+</html>
