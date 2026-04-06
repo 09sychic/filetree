@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Neural Tree Architect v0.8.4</title>
+  <title>Neural Tree Architect v0.8.7</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
   <style>
     :root {
@@ -33,6 +34,30 @@
       --header-height: 60px;
       --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
       --transition: 0.25s var(--ease);
+    }
+
+    @media print {
+      @page { margin: 1cm; size: portrait; }
+      body { background: white !important; color: black !important; height: auto !important; overflow: visible !important; display: block !important; }
+      header, aside, footer, .mobile-actions, .crt-overlay, .ambient, .h-10, #toast, .modal-overlay { display: none !important; }
+      main { display: block !important; overflow: visible !important; grid-template-columns: 1fr !important; }
+      #panel-preview { display: block !important; width: 100% !important; background: white !important; overflow: visible !important; position: static !important; }
+      .tree-viewport { display: flex !important; padding: 0 !important; overflow: visible !important; perspective: none !important; transform: none !important; justify-content: center; align-items: flex-start; }
+      #ascii-render {
+        background: white !important; color: black !important;
+        border: none !important; box-shadow: none !important;
+        padding: 0 !important; margin: 0 !important;
+        white-space: pre !important; 
+        font-size: 8pt !important;
+        display: block !important;
+        position: static !important;
+        transform-origin: top center;
+        /* Dynamic scaling to fit page width/height */
+        zoom: 0.8; /* Simple fallback zoom */
+      }
+      #ascii-render span { color: black !important; text-shadow: none !important; background: none !important; border: none !important; }
+      #ascii-render .root-node { font-weight: bold; }
+      #ascii-render .highlight { background: none !important; color: black !important; transform: none !important; }
     }
 
     [data-theme="matrix"] {
@@ -525,6 +550,14 @@
       <button class="btn btn-outline text-red-400 border-red-900/30" id="btn-clear-all" title="Clear all nodes">Clear</button>
       <button class="btn btn-outline" id="btn-import" title="Import JSON">Imp</button>
       <button class="btn btn-outline" id="btn-export-json" title="Export JSON">JSON</button>
+      <button class="btn btn-outline" id="btn-print" title="Print Tree">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+        Print
+      </button>
+      <button class="btn btn-outline" id="btn-shot" title="Save as Image">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Shot
+      </button>
       <button class="btn btn-primary" id="btn-copy" title="Copy ASCII Tree">Copy</button>
       <input type="file" id="file-input" hidden accept=".json">
     </div>
@@ -574,7 +607,7 @@
   <footer class="h-8 px-6 border-t border-slate-800 flex items-center justify-between text-[0.6rem] text-slate-500 bg-slate-950/80">
     <div class="flex gap-4"><span>SYSTEM_READY</span><span>AUTO_SAVE: ON</span></div>
     <div class="text-center">Made by <span id="footer-dev-link" class="text-slate-400 hover:text-accent cursor-pointer transition-colors">@chqrlzz</span></div>
-    <div class="mono opacity-50">V0.8.4_CORE</div>
+    <div class="mono opacity-50">V0.8.5_CORE</div>
   </footer>
 
   <!-- ── MODALS ── -->
@@ -666,6 +699,8 @@
       const btnAddRoot = document.getElementById('btn-add-root');
       const btnCopy = document.getElementById('btn-copy');
       const btnExportJson = document.getElementById('btn-export-json');
+      const btnPrint = document.getElementById('btn-print');
+      const btnShot = document.getElementById('btn-shot');
       const btnImport = document.getElementById('btn-import');
       const fileInput = document.getElementById('file-input');
       const btnUndo = document.getElementById('btn-undo');
@@ -708,6 +743,38 @@
         nodeSearch.oninput = renderNodeList;
         btnCopy.onclick = copyToClipboard;
         btnExportJson.onclick = exportJson;
+        btnPrint.onclick = () => {
+          showToast("Preparing Smart Print...");
+          const target = document.getElementById('ascii-render');
+          html2canvas(target, {
+            backgroundColor: null, // Transparent
+            scale: 2,
+            logging: false
+          }).then(canvas => {
+            const dataUrl = canvas.toDataURL('image/png');
+            const printWin = window.open('', '_blank');
+            printWin.document.write(`
+              <html>
+                <head>
+                  <title>Print Tree</title>
+                  <style>
+                    body { margin: 0; padding: 20px; display: block; background: transparent; }
+                    img { max-width: 100%; height: auto; object-fit: contain; }
+                    @page { margin: 1cm; size: auto; }
+                  </style>
+                </head>
+                <body onload="setTimeout(() => { window.print(); window.close(); }, 500)">
+                  <img src="${dataUrl}">
+                </body>
+              </html>
+            `);
+            printWin.document.close();
+          }).catch(err => {
+            console.error(err);
+            window.print(); // Fallback to normal print
+          });
+        };
+        btnShot.onclick = saveImage;
         btnImport.onclick = () => fileInput.click();
         fileInput.onchange = importJson;
         btnUndo.onclick = () => { const s = history.undo(); if (s) applyState(s, "Undo"); };
@@ -735,6 +802,7 @@
         asciiRender.addEventListener('dragend', (e) => {
           const node = e.target.closest('.node-text');
           if (node) node.classList.remove('dragging');
+          dragNodeId = null;
           previewTargetId = null;
           document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
           render();
@@ -1135,6 +1203,31 @@
           } 
         }; 
         r.readAsText(f); 
+      }
+
+      function saveImage() {
+        const target = document.getElementById('ascii-render');
+        const originalTransition = target.style.transition;
+        target.style.transition = 'none';
+        
+        showToast("Rendering Image...");
+        
+        html2canvas(target, {
+          backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-surface'),
+          scale: 2, // High quality
+          logging: false,
+          useCORS: true
+        }).then(canvas => {
+          const link = document.createElement('a');
+          link.download = `neural-tree-${Date.now()}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          target.style.transition = originalTransition;
+          showToast("Image Saved");
+        }).catch(err => {
+          console.error(err);
+          showToast("Failed to save image");
+        });
       }
 
       init();
