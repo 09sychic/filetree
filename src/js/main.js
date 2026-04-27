@@ -16,5 +16,5 @@ function initializeSystem() {
   // 2. Initialize UI Specialist
   UIController.initializeApplication();
   
-  console.log("Neural Tree Architect v0.9.3_CORE_READY");
+  console.log("Tree Architect v1.2.4_CORE_READY — Modern Neutral Interface");
 }

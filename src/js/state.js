@@ -6,7 +6,7 @@
  */
 class TreeManager {
   constructor() {
-    this.nodes = [{ id: '1', label: 'Main Topic', children: [], expanded: true }];
+    this.nodes = [{ id: '1', label: 'Architecture Root', children: [], expanded: true }];
     this.idCounter = 2;
     this.history = this.initializeHistory();
   }
@@ -16,7 +16,7 @@ class TreeManager {
   // ══════════════════════════════════════════════════
 
   loadStateFromStorage() {
-    const savedState = localStorage.getItem('neural_tree_v6');
+    const savedState = localStorage.getItem('tree_architect_v1');
     if (!savedState) {
       this.recordHistory();
       return;
@@ -36,8 +36,8 @@ class TreeManager {
 
   persistStateToStorage(shouldRecordHistory = true) {
     const statePayload = { data: this.nodes, counter: this.idCounter };
-    localStorage.setItem('neural_tree_v6', JSON.stringify(statePayload));
-    localStorage.setItem('neural_tree_last_saved', new Date().toISOString());
+    localStorage.setItem('tree_architect_v1', JSON.stringify(statePayload));
+    localStorage.setItem('tree_architect_last_saved', new Date().toISOString());
     
     if (shouldRecordHistory) {
       this.recordHistory();
@@ -83,7 +83,7 @@ class TreeManager {
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
 
     if (this.isMoveInvalid(siblings, targetIndex)) {
-      UIController.notifyUser(`Already at ${direction}`);
+      UIController.notifyUser(`Already at the ${direction === 'up' ? 'top' : 'bottom'}`);
       return;
     }
 
@@ -100,7 +100,7 @@ class TreeManager {
 
     if (!movingNode || !targetNode) return;
     if (this.isDescendant(movingNode, targetNodeId)) {
-      UIController.notifyUser("Cannot move into descendant");
+      UIController.notifyUser("Cannot move into a descendant topic");
       return;
     }
 
@@ -117,16 +117,24 @@ class TreeManager {
     return {
       stack: [],
       index: -1,
-      maxDepth: 50
+      maxDepth: 100
     };
   }
 
   recordHistory() {
-    this.history.stack = this.history.stack.slice(0, this.history.index + 1);
-    this.history.stack.push(JSON.parse(JSON.stringify({ 
+    // Stringify/Parse to ensure deep copy
+    const currentState = JSON.stringify({ 
       data: this.nodes, 
       counter: this.idCounter 
-    })));
+    });
+
+    // Don't record duplicate state
+    if (this.history.index >= 0 && this.history.stack[this.history.index] === currentState) {
+      return;
+    }
+
+    this.history.stack = this.history.stack.slice(0, this.history.index + 1);
+    this.history.stack.push(currentState);
 
     if (this.history.stack.length > this.history.maxDepth) {
       this.history.stack.shift();
@@ -135,19 +143,29 @@ class TreeManager {
   }
 
   undoAsync() {
-    if (this.history.index <= 0) return null;
-    return this.applyHistoryState(this.history.stack[--this.history.index]);
+    if (this.history.index <= 0) return false;
+    this.history.index--;
+    return this.applyHistoryState(JSON.parse(this.history.stack[this.history.index]));
   }
 
   redoAsync() {
-    if (this.history.index >= this.history.stack.length - 1) return null;
-    return this.applyHistoryState(this.history.stack[++this.history.index]);
+    if (this.history.index >= this.history.stack.length - 1) return false;
+    this.history.index++;
+    return this.applyHistoryState(JSON.parse(this.history.stack[this.history.index]));
   }
 
   applyHistoryState(state) {
-    const deepCopy = JSON.parse(JSON.stringify(state));
-    this.nodes = deepCopy.data;
-    this.idCounter = deepCopy.counter;
+    this.nodes = state.data;
+    this.idCounter = state.counter;
+    
+    // Persist without recording new history to avoid loops
+    const statePayload = { data: this.nodes, counter: this.idCounter };
+    localStorage.setItem('tree_architect_v1', JSON.stringify(statePayload));
+    localStorage.setItem('tree_architect_last_saved', new Date().toISOString());
+    
+    if (window.UIController) {
+      window.UIController.refreshStatistics();
+    }
     return true;
   }
 

@@ -2,7 +2,7 @@
 
 /**
  * UIController Specialist
- * Responsibility: Orchestrate DOM interactions and visual rendering.
+ * Responsibility: Orchestrate DOM interactions and visual rendering with strict Depth-based color logic.
  */
 const UIController = {
   activeNodeId: null,
@@ -20,7 +20,8 @@ const UIController = {
     },
     breadcrumb: document.getElementById('breadcrumb-nav'),
     toast: document.getElementById('toast'),
-    saveIndicator: document.getElementById('footer-save-indicator')
+    saveIndicator: document.getElementById('footer-save-indicator'),
+    radialContainer: document.getElementById('radial-export-container')
   },
 
   // ══════════════════════════════════════════════════
@@ -29,7 +30,6 @@ const UIController = {
 
   initializeApplication() {
     this.attachEventListeners();
-    this.applyPersistentTheme();
     this.renderApplication();
   },
 
@@ -37,7 +37,7 @@ const UIController = {
     const draggingNode = this.dragNodeId ? app.findNodeById(this.dragNodeId) : null;
     
     this.renderSidebarList();
-    this.renderNeuralPreview(this.previewTargetId, draggingNode);
+    this.renderTreePreview(this.previewTargetId, draggingNode);
     this.renderBreadcrumbNavigation();
     this.refreshStatistics();
   },
@@ -51,11 +51,8 @@ const UIController = {
   focusNodeForEditing(id) {
     const row = document.querySelector(`.node-row[data-id="${id}"]`);
     if (!row) return;
-
     const label = row.querySelector('.node-label');
-    if (!label) return;
-
-    this.executeFocusAndSelect(label);
+    if (label) this.executeFocusAndSelect(label);
   },
 
   // ── SIDEBAR SPECIALISTS ──
@@ -65,35 +62,36 @@ const UIController = {
     const searchTerm = this.els.search.value.toLowerCase();
     const rootNodes = this.focusNodeId ? [app.findNodeById(this.focusNodeId)] : app.nodes;
     
-    this.buildSidebarRecursive(rootNodes, this.els.nodesRoot, searchTerm);
+    this.buildSidebarRecursive(rootNodes, this.els.nodesRoot, searchTerm, 0);
   },
 
-  buildSidebarRecursive(nodes, container, searchTerm) {
-    nodes.forEach(node => {
+  buildSidebarRecursive(nodes, container, searchTerm, depth) {
+    nodes.forEach((node, index) => {
       if (searchTerm && !this.nodeMatchesSearch(node, searchTerm)) return;
+      
+      const nodeColorIndex = depth % 12;
       
       const nodeWrapper = document.createElement('div');
       nodeWrapper.className = 'node-item';
-      nodeWrapper.appendChild(this.createNodeRowElement(node));
+      nodeWrapper.appendChild(this.createNodeRowElement(node, depth, nodeColorIndex));
 
       if (node.children.length > 0) {
         const childContainer = this.createChildContainer(node, searchTerm);
-        this.buildSidebarRecursive(node.children, childContainer, searchTerm);
+        this.buildSidebarRecursive(node.children, childContainer, searchTerm, depth + 1);
         nodeWrapper.appendChild(childContainer);
       }
       container.appendChild(nodeWrapper);
     });
   },
 
-  createNodeRowElement(node) {
-    const depth = this.calculateNodeDepth(node.id);
+  createNodeRowElement(node, depth, colorIndex) {
     const row = document.createElement('div');
     row.className = `node-row ${this.activeNodeId === node.id ? 'active' : ''}`;
     row.dataset.id = node.id;
     row.onclick = (e) => this.handleNodeSelection(e, node);
 
     const expander = this.createExpanderElement(node);
-    const label = this.createLabelElement(node, depth);
+    const label = this.createLabelElement(node, colorIndex);
     const actions = this.createActionsElement(node);
 
     row.append(expander, label, actions);
@@ -103,7 +101,9 @@ const UIController = {
   createExpanderElement(node) {
     const expander = document.createElement('div');
     expander.className = `node-expander ${node.expanded ? 'expanded' : ''}`;
-    expander.innerHTML = node.children.length > 0 ? '▸' : '';
+    expander.innerHTML = node.children.length > 0 
+      ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(${node.expanded ? '90deg' : '0deg'}); transition: transform 0.2s"><path d="M9 18l6-6-6-6"/></svg>` 
+      : '';
     expander.onclick = (e) => { 
       e.stopPropagation(); 
       node.expanded = !node.expanded; 
@@ -112,19 +112,16 @@ const UIController = {
     return expander;
   },
 
-  createLabelElement(node, depth) {
+  createLabelElement(node, colorIndex) {
     const label = document.createElement('div');
-    label.className = `node-label depth-${Math.min(depth, 5)}`;
+    label.className = `node-label depth-${colorIndex}`;
     label.contentEditable = true;
     label.textContent = node.label;
     
-    label.onfocus = () => { 
-      this.activeNodeId = node.id; 
-      this.renderNeuralPreview(); 
-    };
+    label.onfocus = () => { this.activeNodeId = node.id; this.renderTreePreview(); };
     label.oninput = (e) => { 
       node.label = e.target.textContent || '...'; 
-      this.renderNeuralPreview(); 
+      this.renderTreePreview(); 
       this.refreshStatistics(); 
     };
     label.onblur = () => app.persistStateToStorage();
@@ -136,13 +133,13 @@ const UIController = {
     const actions = document.createElement('div');
     actions.className = 'node-actions';
     actions.innerHTML = `
-      <div class="flex flex-col gap-0.5 mr-0.5">
-        <button class="w-5 h-4 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-[0.5rem] transition-colors" onclick="app.reorderNode('${node.id}', 'up')">▲</button>
-        <button class="w-5 h-4 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-[0.5rem] transition-colors" onclick="app.reorderNode('${node.id}', 'down')">▼</button>
+      <div class="flex gap-0.5 mr-1 border-r border-white/5 pr-1">
+        <button class="btn btn-icon btn-move" title="Move Up" onclick="app.reorderNode('${node.id}', 'up')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 15l-6-6-6 6"/></svg></button>
+        <button class="btn btn-icon btn-move" title="Move Down" onclick="app.reorderNode('${node.id}', 'down')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></button>
       </div>
-      <button class="action-btn" onclick="UIController.focusOnSubtree('${node.id}')">F</button>
-      <button class="action-btn" onclick="app.addNodeToTree('${node.id}')">+</button>
-      <button class="action-btn text-red-400" onclick="app.removeNodeFromTree('${node.id}')">✕</button>
+      <button class="btn btn-icon btn-focus" title="Isolate Branch" onclick="UIController.focusOnSubtree('${node.id}')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+      <button class="btn btn-icon btn-add" title="Add Sub-topic" onclick="app.addNodeToTree('${node.id}')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="btn btn-icon btn-del" title="Delete Topic" onclick="app.removeNodeFromTree('${node.id}')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     `;
     return actions;
   },
@@ -150,44 +147,72 @@ const UIController = {
   createChildContainer(node, searchTerm) {
     const container = document.createElement('div');
     container.className = `node-children ${node.expanded || searchTerm ? 'visible' : ''}`;
-    if (this.focusNodeId === node.id) {
-      container.style.marginLeft = '0';
-    }
     return container;
   },
 
   // ── PREVIEW SPECIALISTS ──
 
-  renderNeuralPreview(dropTargetId = null, draggingNode = null) {
+  renderTreePreview(dropTargetId = null, draggingNode = null) {
     if (app.nodes.length === 0) {
-      this.els.ascii.innerHTML = '';
+      this.els.ascii.innerHTML = this.getEmptyPreviewPlaceholder();
       return;
     }
 
     const searchTerm = this.els.search.value.toLowerCase();
-    const previewHtml = this.buildPreviewRecursive(app.nodes, '', true, true, false, 0, dropTargetId, draggingNode, searchTerm);
-    this.els.ascii.innerHTML = previewHtml;
+    const previewHtml = this.buildPreviewRecursive(app.nodes, [], true, true, 0, dropTargetId, draggingNode, searchTerm);
+    
+    this.els.ascii.innerHTML = `
+      <div class="preview-controls">
+        <button class="btn btn-icon" title="Copy Tree" onclick="UIController.handleClipboardCopy()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        </button>
+      </div>
+      ${previewHtml}
+    `;
   },
 
-  buildPreviewRecursive(nodes, prefix, isLastSibling, isRoot, isGhost, depth, dropTargetId, draggingNode, searchTerm) {
+  getEmptyPreviewPlaceholder() {
+    return `<div class="text-center py-20 text-white/10 uppercase tracking-widest font-bold">Architecture Empty</div>`;
+  },
+
+  /**
+   * Recursive ASCII Builder
+   * @param {Array} nodes - Nodes to render
+   * @param {Array} prefixData - Array of {char, colorClass} objects representing the line prefix
+   */
+  buildPreviewRecursive(nodes, prefixData, isLastSibling, isRoot, depth, dropTargetId, draggingNode, searchTerm) {
     let output = '';
 
     nodes.forEach((node, index) => {
       const isActuallyLast = index === nodes.length - 1;
-      const connector = isRoot ? '' : (isActuallyLast ? '└─ ' : '├─ ');
-      const childPrefix = isRoot ? '' : prefix + (isActuallyLast ? '   ' : '│  ');
       
-      output += this.generateNodeHtml(node, prefix, connector, isGhost, isRoot, depth, searchTerm);
+      // Determine the specific color for THIS node's depth
+      const myColorIndex = depth % 12;
+      const myColorClass = `depth-${myColorIndex}`;
+
+      // 1. Generate the node line
+      output += this.generateNodeHtml(node, prefixData, isActuallyLast, isRoot, myColorClass, searchTerm);
       
+      // 2. Handle Drag/Drop Ghost
       if (node.id === dropTargetId && draggingNode) {
-        output += this.buildPreviewRecursive([draggingNode], childPrefix, node.children.length === 0, false, true, depth + 1, null, null, searchTerm);
+        const ghostPrefix = isRoot ? [] : [...prefixData, { char: isActuallyLast ? '   ' : '│  ', colorClass: myColorClass }];
+        output += this.buildPreviewRecursive([draggingNode], ghostPrefix, true, false, depth + 1, null, null, searchTerm);
       }
 
-      if (node.children.length > 0) {
-        output += this.buildPreviewRecursive(node.children, childPrefix, isActuallyLast, false, isGhost, depth + 1, dropTargetId, draggingNode, searchTerm);
+      // 3. Recursive Children
+      if (node.children.length > 0 && node.expanded) {
+        // Vertical line added here belongs to THIS depth.
+        // It maintains its color in the prefix of all children.
+        const nextPrefixData = isRoot ? [] : [...prefixData, { 
+          char: isActuallyLast ? '   ' : '│  ', 
+          colorClass: myColorClass 
+        }];
         
+        output += this.buildPreviewRecursive(node.children, nextPrefixData, isActuallyLast, false, depth + 1, dropTargetId, draggingNode, searchTerm);
+        
+        // "Shared |" logic: Add visual spacing after deep branches with the depth color
         if (depth === 0 && !isActuallyLast) {
-          output += `<span class="branch ${isGhost ? 'ghost' : ''}">${prefix}│</span>\n`;
+          output += `<span class="branch ${myColorClass}">│</span>\n`;
         }
       }
     });
@@ -195,137 +220,97 @@ const UIController = {
     return output;
   },
 
-  generateNodeHtml(node, prefix, connector, isGhost, isRoot, depth, searchTerm) {
-    const highlightClass = !isGhost && this.activeNodeId === node.id ? 'highlight' : '';
-    const draggingClass = !isGhost && this.dragNodeId === node.id ? 'dragging' : '';
-    const ghostClass = isGhost ? 'ghost' : '';
-    const rootClass = isRoot && !isGhost ? 'root-node' : '';
-    const depthClass = `depth-${Math.min(depth, 5)}`;
+  generateNodeHtml(node, prefixData, isActuallyLast, isRoot, colorClass, searchTerm) {
+    const highlightClass = this.activeNodeId === node.id ? 'highlight' : '';
+    const draggingClass = this.dragNodeId === node.id ? 'dragging' : '';
+    const rootClass = isRoot ? 'root-node' : '';
     
     let labelDisplay = this.escapeHtml(node.label);
     if (searchTerm && node.label.toLowerCase().includes(searchTerm)) {
       labelDisplay = `<span class="search-match">${labelDisplay}</span>`;
     }
 
-    return `<span class="branch ${ghostClass}">${prefix}${connector}</span><span class="${rootClass} ${highlightClass} ${draggingClass} ${ghostClass} ${depthClass} node-text" data-id="${node.id}" draggable="true">${labelDisplay}</span>\n`;
+    // Prefix: Each segment uses the color of its OWN branch owner
+    const prefixHtml = prefixData.map(p => `<span class="branch ${p.colorClass}">${p.char}</span>`).join('');
+
+    // Connector: Belongs to the current node
+    const connector = isRoot ? '' : (isActuallyLast ? '└─ ' : '├─ ');
+
+    return `<span class="branch-wrap">${prefixHtml}<span class="branch ${colorClass}">${connector}</span></span><span class="${rootClass} ${highlightClass} ${draggingClass} ${colorClass} node-text" data-id="${node.id}" draggable="true">${labelDisplay}</span>\n`;
   },
 
   // ── EXPORT SPECIALISTS ──
 
   exportToMarkdownAsync() {
-    let markdownOutput = '';
-    const buildMarkdown = (nodes, depth) => {
-      nodes.forEach(node => {
-        const indentation = '  '.repeat(depth);
-        markdownOutput += `${indentation}- ${node.label}\n`;
-        if (node.children.length) buildMarkdown(node.children, depth + 1);
+    let md = '';
+    const build = (nodes, d) => {
+      nodes.forEach(n => {
+        md += `${'  '.repeat(d)}- ${n.label}\n`;
+        if (n.children.length) build(n.children, d + 1);
       });
     };
-
-    buildMarkdown(app.nodes, 0);
-    this.initiateDownload(markdownOutput, 'tree.md');
+    build(app.nodes, 0);
+    this.initiateDownload(md, 'architecture.md');
   },
 
   exportToMermaidAsync() {
-    let mermaidOutput = 'graph TD\n';
-    const buildMermaid = (nodes) => {
-      nodes.forEach(node => {
-        const parent = app.findParentOfNode(node.id);
-        if (parent) {
-          mermaidOutput += `  ${parent.id}["${parent.label}"] --> ${node.id}["${node.label}"]\n`;
-        } else {
-          mermaidOutput += `  ${node.id}["${node.label}"]\n`;
-        }
-        if (node.children.length) buildMermaid(node.children);
+    let mm = 'graph TD\n';
+    const build = (nodes) => {
+      nodes.forEach(n => {
+        const p = app.findParentOfNode(n.id);
+        if (p) mm += `  ${p.id}["${p.label}"] --> ${n.id}["${n.label}"]\n`;
+        else mm += `  ${n.id}["${n.label}"]\n`;
+        if (n.children.length) build(n.children);
       });
     };
-
-    buildMermaid(app.nodes);
-    this.initiateDownload(mermaidOutput, 'tree.mmd');
+    build(app.nodes);
+    this.initiateDownload(mm, 'diagram.mmd');
   },
 
   exportToJsonAsync() {
-    const jsonOutput = JSON.stringify(app.nodes, null, 2);
-    this.initiateDownload(jsonOutput, 'tree.json');
+    this.initiateDownload(JSON.stringify(app.nodes, null, 2), 'source.json');
   },
 
-  // ── DATA AND BREADCRUMB SPECIALISTS ──
-
   refreshStatistics() {
-    let totalNodes = 0;
-    let maxDepthFound = 0;
-
-    app.traverseNodes(node => {
-      totalNodes++;
-      const depth = this.calculateNodeDepth(node.id) + 1;
-      maxDepthFound = Math.max(maxDepthFound, depth);
+    let count = 0, maxD = 0;
+    app.traverseNodes(n => {
+      count++;
+      maxD = Math.max(maxD, this.calculateNodeDepth(n.id) + 1);
     });
-
-    this.els.stats.nodes.textContent = `NODES: ${totalNodes}`;
-    this.els.stats.depth.textContent = `DEPTH: ${maxDepthFound}`;
-
+    this.els.stats.nodes.textContent = `NODES: ${count}`;
+    this.els.stats.depth.textContent = `DEPTH: ${maxD}`;
     this.updateSaveIndicator();
   },
 
   renderBreadcrumbNavigation() {
-    if (!this.focusNodeId) {
-      this.els.breadcrumb.style.display = 'none';
-      return;
-    }
-
+    if (!this.focusNodeId) { this.els.breadcrumb.style.display = 'none'; return; }
     this.els.breadcrumb.style.display = 'flex';
     this.els.breadcrumb.innerHTML = '';
-    
-    const path = this.constructBreadcrumbPath(this.focusNodeId);
-    this.buildBreadcrumbElements(path);
-  },
-
-  constructBreadcrumbPath(nodeId) {
     const path = [];
-    let current = app.findNodeById(nodeId);
-    while (current) {
-      path.unshift(current);
-      current = app.findParentOfNode(current.id);
-    }
-    return path;
-  },
-
-  buildBreadcrumbElements(path) {
-    const rootBreadcrumb = this.createBreadcrumbItem('All Nodes', null);
-    this.els.breadcrumb.appendChild(rootBreadcrumb);
-
-    path.forEach(node => {
-      const separator = document.createElement('span');
-      separator.className = 'breadcrumb-sep';
-      separator.textContent = ' / ';
-      
-      const item = this.createBreadcrumbItem(node.label, node.id);
-      this.els.breadcrumb.append(separator, item);
+    let cur = app.findNodeById(this.focusNodeId);
+    while (cur) { path.unshift(cur); cur = app.findParentOfNode(cur.id); }
+    
+    const rootItem = this.createBreadcrumbItem('Root', null);
+    this.els.breadcrumb.appendChild(rootItem);
+    path.forEach(n => {
+      const sep = document.createElement('span');
+      sep.className = 'mx-1 opacity-20'; sep.textContent = '/';
+      this.els.breadcrumb.append(sep, this.createBreadcrumbItem(n.label, n.id));
     });
   },
 
   createBreadcrumbItem(text, id) {
     const span = document.createElement('span');
-    span.className = 'breadcrumb-item';
+    span.className = 'cursor-pointer hover:text-white transition-colors';
     span.textContent = text;
-    span.onclick = () => { 
-      this.focusNodeId = id; 
-      this.renderApplication(); 
-    };
+    span.onclick = () => { this.focusNodeId = id; this.renderApplication(); };
     return span;
   },
 
-  // ── UTILITY SPECIALISTS ──
-
   handleNodeSelection(e, node) {
-    if (this.isEventOnLabelOrAction(e)) return;
-    
+    if (e.target.classList.contains('node-label') || e.target.closest('button')) return;
     this.activeNodeId = node.id;
     this.renderApplication();
-  },
-
-  isEventOnLabelOrAction(e) {
-    return e.target.classList.contains('node-label') || e.target.closest('button');
   },
 
   nodeMatchesSearch(node, term) {
@@ -334,104 +319,56 @@ const UIController = {
   },
 
   calculateNodeDepth(id) {
-    let depth = 0;
-    let current = app.findNodeById(id);
-    while (current && (current = app.findParentOfNode(current.id))) {
-      depth++;
-    }
-    return depth;
+    let d = 0;
+    let cur = app.findNodeById(id);
+    while (cur && (cur = app.findParentOfNode(cur.id))) d++;
+    return d;
   },
 
-  focusOnSubtree(id) {
-    this.focusNodeId = id;
-    this.renderApplication();
-  },
+  focusOnSubtree(id) { this.focusNodeId = id; this.renderApplication(); },
 
-  executeFocusAndSelect(element) {
-    element.focus();
+  executeFocusAndSelect(el) {
+    el.focus();
     const range = document.createRange();
-    range.selectNodeContents(element);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
   },
 
   updateSaveIndicator() {
-    const lastSaved = localStorage.getItem('neural_tree_last_saved');
-    if (lastSaved && this.els.saveIndicator) {
-      const timeString = new Date(lastSaved).toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-      this.els.saveIndicator.textContent = `LAST_SAVED: ${timeString}`;
+    const last = localStorage.getItem('tree_architect_last_saved');
+    if (last && this.els.saveIndicator) {
+      this.els.saveIndicator.textContent = `Auto-saved: ${new Date(last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     }
   },
 
-  setApplicationTheme(themeName) {
-    document.body.dataset.theme = themeName;
-    localStorage.setItem('neural_theme', themeName);
-    
-    document.querySelectorAll('.theme-dot').forEach(dot => {
-      dot.classList.toggle('active', dot.dataset.setTheme === themeName);
-    });
-  },
-
-  applyPersistentTheme() {
-    const savedTheme = localStorage.getItem('neural_theme') || 'default';
-    this.setApplicationTheme(savedTheme);
-  },
-
-  initiateDownload(content, filename) {
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    this.notifyUser(`Exported ${filename}`);
-  },
-
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  },
-
-  // ── EVENT BINDING ──
-
   attachEventListeners() {
-    // Top-level actions
     document.getElementById('btn-add-root').onclick = () => app.addNodeToTree(null);
     document.getElementById('btn-clear-all').onclick = () => this.handleClearRequest();
     this.els.search.oninput = () => this.renderApplication();
-    
-    // Export actions
     document.getElementById('btn-copy').onclick = () => this.handleClipboardCopy();
     document.getElementById('btn-export-json').onclick = () => this.exportToJsonAsync();
     document.getElementById('btn-export-md').onclick = () => this.exportToMarkdownAsync();
     document.getElementById('btn-export-mmd').onclick = () => this.exportToMermaidAsync();
     document.getElementById('btn-import').onclick = () => this.handleImportRequest();
     document.getElementById('btn-shot').onclick = () => this.handleScreenshotRequest();
+    document.getElementById('btn-export-radial').onclick = () => this.handleRadialExport();
     document.getElementById('btn-print').onclick = () => window.print();
-
-    // History and Keyboard
     document.getElementById('btn-undo').onclick = () => this.handleUndoRequest();
     document.getElementById('btn-redo').onclick = () => this.handleRedoRequest();
     document.getElementById('btn-expand-all').onclick = () => this.handleExpandAllToggle();
-    window.addEventListener('keydown', (e) => this.handleGlobalKeydown(e));
-
-    // UI elements
-    document.querySelectorAll('[data-set-theme]').forEach(dot => {
-      dot.onclick = () => this.setApplicationTheme(dot.dataset.setTheme);
-    });
-
+    window.onkeydown = (e) => {
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.handleUndoRequest(); }
+      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.handleRedoRequest(); }
+    };
     this.attachDragAndDropEvents();
     this.attachPreviewClickEvents();
   },
 
   handleClearRequest() {
-    if (!confirm("Reset everything?")) return;
-    app.nodes = [{ id: '1', label: 'Main Topic', children: [], expanded: true }];
+    if (!confirm("Reset the entire architecture?")) return;
+    app.nodes = [{ id: '1', label: 'Architecture Root', children: [], expanded: true }];
     app.idCounter = 2;
     this.activeNodeId = this.focusNodeId = null;
     app.persistStateToStorage();
@@ -439,128 +376,139 @@ const UIController = {
   },
 
   handleClipboardCopy() {
-    navigator.clipboard.writeText(this.els.ascii.innerText).then(() => {
-      this.notifyUser("Copied Tree");
-    });
+    const temp = document.createElement('div');
+    temp.innerHTML = this.els.ascii.innerHTML;
+    const controls = temp.querySelector('.preview-controls');
+    if (controls) controls.remove();
+    navigator.clipboard.writeText(temp.innerText.trim()).then(() => this.notifyUser("Copied to clipboard"));
   },
 
   handleImportRequest() {
     const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = (e) => this.executeImport(e.target.files[0]);
+    input.type = 'file'; input.accept = '.json';
+    input.onchange = (e) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          app.nodes = Array.isArray(data) ? data : [data];
+          app.synchronizeIdCounter();
+          app.persistStateToStorage();
+          this.renderApplication();
+          this.notifyUser("Imported successfully");
+        } catch (err) { this.notifyUser("Invalid JSON"); }
+      };
+      reader.readAsText(e.target.files[0]);
+    };
     input.click();
   },
 
-  executeImport(file) {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target.result);
-        app.nodes = Array.isArray(data) ? data : [data];
-        app.synchronizeIdCounter();
-        app.persistStateToStorage();
-        this.renderApplication();
-        this.notifyUser("Imported Successfully");
-      } catch (error) {
-        this.notifyUser("Invalid JSON File");
-      }
-    };
-    reader.readAsText(file);
-  },
-
   handleScreenshotRequest() {
-    this.notifyUser("Rendering...");
-    html2canvas(this.els.ascii, { 
-      backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-surface'), 
-      scale: 2 
-    }).then(canvas => {
+    this.notifyUser("Capturing render...");
+    const controls = this.els.ascii.querySelector('.preview-controls');
+    if (controls) controls.style.visibility = 'hidden';
+    domtoimage.toPng(this.els.ascii, { bgcolor: '#111111' }).then((url) => {
+      if (controls) controls.style.visibility = 'visible';
       const link = document.createElement('a');
-      link.download = `tree-${Date.now()}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
-      this.notifyUser("Saved Image");
+      link.download = `architecture-${Date.now()}.png`; link.href = url; link.click();
+      this.notifyUser("Image saved");
     });
   },
 
+  handleRadialExport() {
+    this.notifyUser("Generating Radial Mind Map...");
+    this.els.radialContainer.innerHTML = '';
+    const width = 1800, height = 1800, radius = width / 2;
+    const data = { label: "Architecture", children: app.nodes };
+    const tree = d3.tree().size([2 * Math.PI, radius - 200]);
+    const root = d3.hierarchy(data);
+    tree(root);
+    const svg = d3.select(this.els.radialContainer).append("svg")
+        .attr("width", width).attr("height", height)
+        .append("g").attr("transform", `translate(${width/2},${height/2})`);
+    svg.append("g").attr("fill", "none").attr("stroke", "#333").attr("stroke-opacity", 0.4).attr("stroke-width", 1.5)
+      .selectAll("path").data(root.links()).join("path")
+        .attr("d", d3.linkRadial().angle(d => d.x).radius(d => d.y));
+    svg.append("g").selectAll("circle").data(root.descendants()).join("circle")
+        .attr("transform", d => `rotate(${(d.x * 180 / Math.PI - 90)}) translate(${d.y},0)`)
+        .attr("fill", d => d.children ? "#fff" : "#888").attr("r", 4);
+    svg.append("g").attr("font-family", "Outfit").attr("font-size", 14).attr("fill", "#fff")
+      .selectAll("text").data(root.descendants()).join("text")
+        .attr("transform", d => `rotate(${(d.x * 180 / Math.PI - 90)}) translate(${d.y},0) rotate(${d.x >= Math.PI ? 180 : 0})`)
+        .attr("dy", "0.31em").attr("x", d => d.x < Math.PI === !d.children ? 6 : -6)
+        .attr("text-anchor", d => d.x < Math.PI === !d.children ? "start" : "end").text(d => d.data.label)
+      .clone(true).lower().attr("stroke", "#000").attr("stroke-width", 3);
+    setTimeout(() => {
+      domtoimage.toPng(this.els.radialContainer).then((url) => {
+        const link = document.createElement('a');
+        link.download = `radial-map-${Date.now()}.png`; link.href = url; link.click();
+        this.notifyUser("Radial map exported");
+      });
+    }, 500);
+  },
+
   handleUndoRequest() {
-    if (app.undoAsync()) {
-      this.renderApplication();
-      this.notifyUser("Undo Action");
-    }
+    if (app.undoAsync()) { this.renderApplication(); this.notifyUser("Undo performed"); }
+    else this.notifyUser("Nothing to undo");
   },
 
   handleRedoRequest() {
-    if (app.redoAsync()) {
-      this.renderApplication();
-      this.notifyUser("Redo Action");
-    }
+    if (app.redoAsync()) { this.renderApplication(); this.notifyUser("Redo performed"); }
+    else this.notifyUser("Nothing to redo");
   },
 
   handleExpandAllToggle() {
-    const isCurrentlyExpanded = app.nodes[0].expanded;
-    app.traverseNodes(node => node.expanded = !isCurrentlyExpanded);
+    let anyCollapsed = false;
+    app.traverseNodes(n => { if (!n.expanded) anyCollapsed = true; });
+    const target = anyCollapsed;
+    app.traverseNodes(n => { n.expanded = target; });
     this.renderApplication();
-  },
-
-  handleGlobalKeydown(e) {
-    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.handleUndoRequest(); }
-    if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.handleRedoRequest(); }
+    this.notifyUser(target ? "Expanded all" : "Collapsed all");
   },
 
   attachDragAndDropEvents() {
     this.els.ascii.ondragstart = (e) => {
-      const nodeElement = e.target.closest('.node-text');
-      if (nodeElement) {
-        this.dragNodeId = nodeElement.dataset.id;
-        nodeElement.classList.add('dragging');
-      }
+      const el = e.target.closest('.node-text');
+      if (el) { this.dragNodeId = el.dataset.id; el.classList.add('dragging'); e.dataTransfer.setData('text/plain', el.dataset.id); }
     };
-
-    this.els.ascii.ondragend = () => {
-      this.dragNodeId = this.previewTargetId = null;
-      this.renderApplication();
-    };
-
+    this.els.ascii.ondragend = () => { this.dragNodeId = this.previewTargetId = null; this.renderApplication(); };
     this.els.ascii.ondragover = (e) => {
       e.preventDefault();
-      const nodeElement = e.target.closest('.node-text');
-      if (nodeElement && nodeElement.dataset.id !== this.dragNodeId) {
-        if (this.previewTargetId !== nodeElement.dataset.id) {
-          this.previewTargetId = nodeElement.dataset.id;
-          this.renderNeuralPreview(this.previewTargetId, app.findNodeById(this.dragNodeId));
-        }
-      }
+      const el = e.target.closest('.node-text');
+      if (el && el.dataset.id !== this.dragNodeId) {
+        if (this.previewTargetId !== el.dataset.id) { this.previewTargetId = el.dataset.id; this.renderTreePreview(this.previewTargetId, app.findNodeById(this.dragNodeId)); }
+      } else if (!el && this.previewTargetId !== null) { this.previewTargetId = null; this.renderTreePreview(); }
     };
-
     this.els.ascii.ondrop = (e) => {
       e.preventDefault();
-      const targetElement = e.target.closest('.node-text');
-      if (targetElement && this.dragNodeId) {
-        app.relocateNodeSubtree(this.dragNodeId, targetElement.dataset.id);
-      }
+      const el = e.target.closest('.node-text');
+      if (el && this.dragNodeId && this.dragNodeId !== el.dataset.id) app.relocateNodeSubtree(this.dragNodeId, el.dataset.id);
+      this.dragNodeId = this.previewTargetId = null;
     };
   },
 
   attachPreviewClickEvents() {
     this.els.ascii.onclick = (e) => {
-      const nodeElement = e.target.closest('.node-text');
-      if (nodeElement) {
-        this.activeNodeId = nodeElement.dataset.id;
-        this.renderApplication();
-        this.scrollToAndFocus(nodeElement.dataset.id);
-      }
+      const el = e.target.closest('.node-text');
+      if (el) { this.activeNodeId = el.dataset.id; this.renderApplication(); this.scrollToAndFocus(el.dataset.id); }
     };
   },
 
-  scrollToAndFocus(nodeId) {
+  scrollToAndFocus(id) {
     setTimeout(() => {
-      const row = document.querySelector(`.node-row[data-id="${nodeId}"]`);
-      if (row) {
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        this.focusNodeForEditing(nodeId);
-      }
+      const row = document.querySelector(`.node-row[data-id="${id}"]`);
+      if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); this.focusNodeForEditing(id); }
     }, 100);
+  },
+
+  initiateDownload(content, filename) {
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    this.notifyUser(`Exported ${filename}`);
+  },
+
+  escapeHtml(text) {
+    const div = document.createElement('div'); div.textContent = text; return div.innerHTML;
   }
 };
 
