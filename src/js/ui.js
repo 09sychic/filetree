@@ -65,6 +65,7 @@ const UI = {
 
   createNodeRow(node) {
     const row = document.createElement('div');
+    const depth = this.getNodeDepth(node.id);
     row.className = `node-row ${this.activeNodeId === node.id ? 'active' : ''}`;
     row.dataset.id = node.id;
     row.onclick = (e) => this.handleRowClick(e, node);
@@ -75,7 +76,7 @@ const UI = {
     expander.onclick = (e) => { e.stopPropagation(); node.expanded = !node.expanded; this.render(); };
 
     const label = document.createElement('div');
-    label.className = 'node-label';
+    label.className = `node-label depth-${Math.min(depth, 5)}`;
     label.contentEditable = true;
     label.textContent = node.label;
     label.onfocus = () => { this.activeNodeId = node.id; this.renderPreview(); };
@@ -113,13 +114,20 @@ const UI = {
     return node.children.some(c => this.matchesSearch(c, term));
   },
 
+  getNodeDepth(id) {
+    let depth = 0;
+    let cur = app.findNode(id);
+    while (cur && (cur = app.findParent(cur.id))) depth++;
+    return depth;
+  },
+
   // ── PREVIEW RENDERING ──
   renderPreview(previewDropId = null, draggingNode = null) {
     if (!app.data.length) { this.els.ascii.innerHTML = ''; return; }
     let out = '';
     const searchTerm = this.els.search.value.toLowerCase();
 
-    const build = (nodes, prefix = '', isLast = true, isRoot = false, isGhost = false) => {
+    const build = (nodes, prefix = '', isLast = true, isRoot = false, isGhost = false, depth = 0) => {
       nodes.forEach((node, i) => {
         const last = i === nodes.length - 1;
         const conn = isRoot ? '' : (last ? '└─ ' : '├─ ');
@@ -135,14 +143,15 @@ const UI = {
           labelDisplay = `<span class="search-match">${labelDisplay}</span>`;
         }
 
-        out += `<span class="branch ${ghostClass}">${prefix}${conn}</span><span class="${isRoot && !isGhost ? 'root-node' : ''} ${highlight} ${dragging} ${ghostClass} node-text" data-id="${node.id}" draggable="true">${labelDisplay}</span>\n`;
+        const depthClass = `depth-${Math.min(depth, 5)}`;
+        out += `<span class="branch ${ghostClass}">${prefix}${conn}</span><span class="${isRoot && !isGhost ? 'root-node' : ''} ${highlight} ${dragging} ${ghostClass} ${depthClass} node-text" data-id="${node.id}" draggable="true">${labelDisplay}</span>\n`;
         
         if (node.id === previewDropId && draggingNode) {
-          build([draggingNode], cPre, node.children.length === 0, false, true);
+          build([draggingNode], cPre, node.children.length === 0, false, true, depth + 1);
         }
 
         if (node.children.length) {
-          build(node.children, cPre, last, false, isGhost);
+          build(node.children, cPre, last, false, isGhost, depth + 1);
           if (!last) {
             const spacerConn = isRoot ? '' : '│';
             out += `<span class="branch ${ghostClass}">${prefix}${spacerConn}</span>\n`;
@@ -151,8 +160,49 @@ const UI = {
       });
     };
 
-    build(app.data, '', true, true, false);
+    build(app.data, '', true, true, false, 0);
     this.els.ascii.innerHTML = out;
+  },
+
+  // ── EXPORT FUNCTIONS ──
+  exportMarkdown() {
+    let out = '';
+    const build = (nodes, depth = 0) => {
+      nodes.forEach(node => {
+        const indent = '  '.repeat(depth);
+        out += `${indent}- ${node.label}\n`;
+        if (node.children.length) build(node.children, depth + 1);
+      });
+    };
+    build(app.data);
+    this.downloadFile(out, 'tree.md');
+  },
+
+  exportMermaid() {
+    let out = 'graph TD\n';
+    const build = (nodes) => {
+      nodes.forEach(node => {
+        const parent = app.findParent(node.id);
+        if (parent) {
+          out += `  ${parent.id}["${parent.label}"] --> ${node.id}["${node.label}"]\n`;
+        } else {
+          out += `  ${node.id}["${node.label}"]\n`;
+        }
+        if (node.children.length) build(node.children);
+      });
+    };
+    build(app.data);
+    this.downloadFile(out, 'tree.mmd');
+  },
+
+  downloadFile(content, filename) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    this.showToast(`Exported ${filename}`);
   },
 
   // ── UTILITIES ──
@@ -160,9 +210,7 @@ const UI = {
     let count = 0, depth = 0;
     app.traverse(n => {
       count++;
-      // Calculate depth by finding parents (inefficient but safe for small trees)
-      let d = 1, p = n;
-      while (p = app.findParent(p.id)) d++;
+      const d = this.getNodeDepth(n.id) + 1;
       depth = Math.max(depth, d);
     });
 
@@ -307,6 +355,9 @@ const UI = {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'tree.json'; a.click();
     };
+
+    document.getElementById('btn-export-md').onclick = () => this.exportMarkdown();
+    document.getElementById('btn-export-mmd').onclick = () => this.exportMermaid();
 
     document.getElementById('btn-import').onclick = () => {
       const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
