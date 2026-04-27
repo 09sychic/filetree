@@ -152,9 +152,11 @@ const UI = {
 
         if (node.children.length) {
           build(node.children, cPre, last, false, isGhost, depth + 1);
-          if (!last) {
-            const spacerConn = isRoot ? '' : '│';
-            out += `<span class="branch ${ghostClass}">${prefix}${spacerConn}</span>\n`;
+          
+          // Refined Spacing Logic: 
+          // Only add spacer line after level-1 nodes (children of absolute root) if they have children and are NOT last
+          if (depth === 0 && !last) {
+            out += `<span class="branch ${ghostClass}">${prefix}│</span>\n`;
           }
         }
       });

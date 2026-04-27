@@ -211,13 +211,13 @@ main {
 #ascii-render .highlight { background: var(--accent); color: var(--bg); border-radius: 4px; padding: 0 6px; }
 #ascii-render .search-match { background: var(--accent-amber); color: var(--bg); border-radius: 2px; }
 
-/* Depth Coloring */
-.depth-0 { color: var(--root-color) !important; font-weight: 700; }
-.depth-1 { color: #7dd3fc !important; } /* Sky 300 */
-.depth-2 { color: #38bdf8 !important; } /* Sky 400 */
-.depth-3 { color: #0ea5e9 !important; } /* Sky 500 */
-.depth-4 { color: #0284c7 !important; } /* Sky 600 */
-.depth-5 { color: #0369a1 !important; } /* Sky 700 */
+/* Depth Coloring - Noticeable Palette */
+.depth-0 { color: #ffffff !important; font-weight: 700; text-shadow: 0 0 10px rgba(255,255,255,0.2); }
+.depth-1 { color: #f59e0b !important; } /* Amber 500 */
+.depth-2 { color: #10b981 !important; } /* Emerald 500 */
+.depth-3 { color: #38bdf8 !important; } /* Sky 400 */
+.depth-4 { color: #a855f7 !important; } /* Purple 500 */
+.depth-5 { color: #ec4899 !important; } /* Pink 500 */
 
 .btn {
   padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
