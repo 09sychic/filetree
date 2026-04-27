@@ -1,0 +1,115 @@
+Structural Geology & Rock Mechanics
+├─ Rock Mechanics
+│  ├─ Structural Rock Mechanics
+│  └─ Comminution
+│
+├─ Scale Terms
+│  ├─ Global
+│  ├─ Regional or Provincial
+│  ├─ Macroscopic or Map Scale
+│  ├─ Mesoscopic
+│  ├─ Microscopic
+│  ├─ Submicroscopic
+│  ├─ Penetrative
+│  └─ Non-penetrative
+│
+├─ Structure Classification
+│  ├─ Primary Structures
+│  └─ Secondary Structures
+│
+├─ Measurement & Symbology
+│  ├─ Trend
+│  ├─ Bearing
+│  ├─ Azimuth
+│  ├─ Strike
+│  ├─ Inclination
+│  └─ Symbology in Structural Geology
+│
+├─ Deformation Features
+│  ├─ Fractures
+│  │  ├─ Shear Fractures
+│  │  │  ├─ Faults
+│  │  │  └─ Slip Surfaces
+│  │  └─ Extension Fractures
+│  │     ├─ Tensile Fractures
+│  │     ├─ Joints
+│  │     ├─ Fissures
+│  │     ├─ Veins
+│  │     └─ Dikes
+│  │
+│  ├─ Folds
+│  │  ├─ Anticline
+│  │  └─ Syncline
+│  │
+│  ├─ Foliation
+│  ├─ Lineation
+│  └─ Shear Zones
+│
+├─ Wave Theory & Elasticity
+│  ├─ Elastic Deformation
+│  │  ├─ Stress
+│  │  │  ├─ Normal Stress
+│  │  │  ├─ Compressive Stress
+│  │  │  ├─ Tensile Stress
+│  │  │  └─ Shear Stress
+│  │  └─ Strain
+│  │     ├─ Elastic Strain
+│  │     └─ Plastic Strain
+│  │
+│  ├─ Material Elastic Properties
+│  │  ├─ Lamé Parameters
+│  │  ├─ Shear Modulus
+│  │  ├─ Elastic Modulus
+│  │  │  ├─ Bulk Modulus
+│  │  │  └─ Young’s Modulus
+│  │  └─ Poisson’s Ratio
+│  │
+│  └─ Seismic Waves
+│     ├─ Seismic Velocity
+│     ├─ Body Waves
+│     │  ├─ Pressure Waves
+│     │  └─ Shear Waves
+│     ├─ Surface Waves
+│     │  ├─ Rayleigh Waves
+│     │  │  ├─ Prograde
+│     │  │  └─ Retrograde
+│     │  └─ Love Waves
+│     └─ Factors Impacting Velocity
+│        ├─ Mineralogy and Structure
+│        ├─ Porosity
+│        ├─ Pore Fluid and Saturation
+│        │  ├─ Pore Fluid
+│        │  └─ Pore Saturation
+│        └─ Lithification
+│           └─ Cementation
+│
+└─ Grouting
+   ├─ Grouting Techniques
+   │  ├─ Permeation
+   │  ├─ Soil Fracture Grouting
+   │  ├─ Compaction Grouting
+   │  └─ Jet or Replacement Grouting
+   │
+   ├─ Grout Characteristics
+   │  ├─ Groutability
+   │  ├─ Stability
+   │  ├─ Permanence
+   │  ├─ Toxicity
+   │  └─ Setting Time
+   │
+   ├─ Grout Materials
+   │  ├─ Suspensions
+   │  ├─ Emulsions
+   │  └─ Solutions
+   │
+   └─ Types of Grouting Materials
+      ├─ Cement Grouting
+      ├─ Bentonite Grouting
+      ├─ Chemical Grouting
+      │  ├─ Two-shot Process
+      │  └─ One-shot Process
+      ├─ Resin Grouting
+      │  ├─ Tannin-based Grouts
+      │  ├─ Phenol-formaldehyde
+      │  └─ Resorcinol-formaldehyde
+      └─ Bituminous Grouting
