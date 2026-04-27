@@ -478,25 +478,27 @@ const UIController = {
 
     // Give D3 a moment to finalize DOM before capture
     setTimeout(() => {
+      // Temporarily make container visible for capture if needed by the library
+      const originalVisibility = this.els.radialContainer.style.visibility;
+      this.els.radialContainer.style.visibility = 'visible';
+
       domtoimage.toPng(this.els.radialContainer, {
         width: width,
         height: height,
-        style: {
-          visibility: 'visible',
-          left: '0',
-          top: '0'
-        }
+        bgcolor: '#0a0a0a'
       }).then((url) => {
+        this.els.radialContainer.style.visibility = originalVisibility;
         const link = document.createElement('a');
         link.download = `radial-map-${Date.now()}.png`;
         link.href = url;
         link.click();
         this.notifyUser("Radial map exported");
       }).catch(err => {
+        this.els.radialContainer.style.visibility = originalVisibility;
         console.error("Radial export failed", err);
         this.notifyUser("Export failed");
       });
-    }, 600);
+    }, 800);
   },
 
   handleUndoRequest() {
@@ -519,23 +521,28 @@ const UIController = {
   },
 
   attachDragAndDropEvents() {
-    // 1. Drag Start
+    // 1. Mouse down fallback to ensure draggable is active
+    this.els.ascii.addEventListener('mousedown', (e) => {
+      const el = e.target.closest('.node-text');
+      if (el) el.setAttribute('draggable', 'true');
+    });
+
+    // 2. Drag Start
     this.els.ascii.addEventListener('dragstart', (e) => {
       const el = e.target.closest('.node-text');
       if (el) {
         this.dragNodeId = el.dataset.id;
         el.classList.add('dragging');
         
-        // Critical: Set data for the drag operation to be valid
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', el.dataset.id);
         
-        // Hide ghost until moved
+        // Custom drag image or behavior can go here
         setTimeout(() => el.style.opacity = '0.3', 0);
       }
     });
 
-    // 2. Drag End
+    // 3. Drag End
     this.els.ascii.addEventListener('dragend', (e) => {
       const el = e.target.closest('.node-text');
       if (el) {
@@ -547,9 +554,9 @@ const UIController = {
       this.renderApplication();
     });
 
-    // 3. Drag Over (on container)
+    // 4. Drag Over
     this.els.ascii.addEventListener('dragover', (e) => {
-      e.preventDefault(); // Required to allow drop
+      e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       
       const el = e.target.closest('.node-text');
@@ -564,7 +571,7 @@ const UIController = {
       }
     });
 
-    // 4. Drop
+    // 5. Drop
     this.els.ascii.addEventListener('drop', (e) => {
       e.preventDefault();
       const el = e.target.closest('.node-text');
@@ -575,7 +582,6 @@ const UIController = {
       this.previewTargetId = null;
     });
 
-    // Global preventive to allow dropping anywhere if needed
     window.addEventListener('dragover', (e) => e.preventDefault(), false);
     window.addEventListener('drop', (e) => e.preventDefault(), false);
   },
